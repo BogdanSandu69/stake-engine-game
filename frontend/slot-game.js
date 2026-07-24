@@ -1,5 +1,5 @@
-// Golden Dragon Deluxe - PIXI.js Frontend (FIXED v2)
-// Stake Engine Slot Game
+// Golden Dragon Deluxe - PIXI.js Frontend (FIXED v3)
+// Stake Engine Slot Game - Manual Canvas Approach
 
 const API_BASE = 'http://localhost:8000';
 let sessionId = null;
@@ -32,27 +32,30 @@ async function init() {
     try {
         console.log('🎰 Initializing game...');
         
-        // Create PIXI app
         const container = document.getElementById('gameContainer');
         if (!container) {
             console.error('❌ gameContainer not found');
             return;
         }
 
+        // Create canvas manually
+        const canvas = document.createElement('canvas');
+        canvas.width = 900;
+        canvas.height = 400;
+        canvas.style.border = '3px solid #ffd700';
+        canvas.style.borderRadius = '10px';
+        canvas.style.display = 'block';
+        container.appendChild(canvas);
+        console.log('✅ Canvas created');
+
+        // Initialize PIXI with manual canvas
         app = new PIXI.Application({
+            canvas: canvas,
             width: 900,
             height: 400,
             backgroundColor: 0x0a0e27,
-            antialias: true,
-            resolution: window.devicePixelRatio || 1
+            antialias: true
         });
-
-        // Get canvas from app
-        const canvas = app.canvas;
-        if (canvas) {
-            container.appendChild(canvas);
-            console.log('✅ Canvas appended');
-        }
 
         console.log('✅ PIXI app created');
 
@@ -63,7 +66,7 @@ async function init() {
         await initGameSession();
         
         setupEventListeners();
-        console.log('✅ Game initialized');
+        console.log('✅ Game initialized successfully');
     } catch (error) {
         console.error('❌ Init error:', error);
         showError('Failed to initialize: ' + error.message);
@@ -329,17 +332,22 @@ function setupEventListeners() {
 // Message Helpers
 function showError(msg) {
     const el = document.getElementById('errorMsg');
-    el.textContent = msg;
-    el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 3000);
+    if (el) {
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 3000);
+    }
 }
 
 function showSuccess(msg) {
     const el = document.getElementById('successMsg');
-    el.textContent = msg;
-    el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 3000);
+    if (el) {
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 3000);
+    }
 }
 
 // Start when ready
+console.log('🎰 Script loaded, waiting for DOM...');
 document.addEventListener('DOMContentLoaded', init);
