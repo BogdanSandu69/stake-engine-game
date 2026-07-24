@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎰 Golden Dragon Deluxe - Stake Engine</title>
     <script src="https://pixijs.download/v8.0.0/pixi.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -97,6 +98,7 @@
         canvas {
             display: block !important;
             margin: 0 auto !important;
+            max-width: 100%;
         }
 
         .controls {
@@ -205,20 +207,6 @@
             border-radius: 5px;
             margin-bottom: 15px;
             display: none;
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #ffd700;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
         }
 
         @media (max-width: 768px) {
