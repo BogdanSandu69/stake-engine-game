@@ -14,7 +14,6 @@ let gameState = {
 // PIXI Setup
 let app;
 let reelContainers = [];
-let symbolSprites = [];
 const SYMBOL_NAMES = ['cherry', 'lemon', 'orange', 'grapes', 'melon', 'bell', 'seven', 'diamond', 'wild', 'scatter'];
 const SYMBOL_COLORS = {
     cherry: 0xff0000,
@@ -31,18 +30,36 @@ const SYMBOL_COLORS = {
 
 // Initialize PIXI App
 async function initPixi() {
-    app = new PIXI.Application({
-        width: 900,
-        height: 400,
-        backgroundColor: 0x0a0e27,
-        antialias: true
-    });
+    try {
+        // Create canvas element
+        const canvas = document.createElement('canvas');
+        canvas.id = 'pixi-canvas';
+        canvas.width = 900;
+        canvas.height = 400;
 
-    document.getElementById('gameCanvas').parentNode.insertBefore(app.view, document.getElementById('gameCanvas'));
-    document.getElementById('gameCanvas').style.display = 'none';
+        const gameContainer = document.getElementById('gameContainer');
+        if (!gameContainer) {
+            console.error('gameContainer not found');
+            return;
+        }
+        gameContainer.appendChild(canvas);
 
-    createReels();
-    await initGame();
+        // Initialize PIXI app with canvas
+        app = new PIXI.Application({
+            view: canvas,
+            width: 900,
+            height: 400,
+            backgroundColor: 0x0a0e27,
+            antialias: true
+        });
+
+        console.log('✅ PIXI app initialized');
+        createReels();
+        await initGame();
+    } catch (error) {
+        console.error('PIXI initialization error:', error);
+        showError('Failed to initialize game: ' + error.message);
+    }
 }
 
 // Create Reel Containers
@@ -87,6 +104,8 @@ function createReels() {
             symbols: []
         });
     }
+
+    console.log('✅ Reels created');
 }
 
 // Create Symbol Sprite
@@ -129,6 +148,7 @@ async function initGame() {
         updateUI();
         console.log('✅ Game initialized:', sessionId);
     } catch (error) {
+        console.error('Game init error:', error);
         showError('Failed to initialize game: ' + error.message);
     }
 }
@@ -174,6 +194,7 @@ async function spin() {
             showError(result.error || 'Spin failed');
         }
     } catch (error) {
+        console.error('Spin error:', error);
         showError('Spin error: ' + error.message);
     }
 
@@ -194,12 +215,18 @@ async function animateReels() {
         promises.push(
             new Promise(resolve => {
                 setTimeout(() => {
-                    gsap.to(reel.symbolContainer, {
-                        y: 300,
-                        duration: spinDuration,
-                        ease: 'back.out',
-                        onComplete: resolve
-                    });
+                    if (typeof gsap !== 'undefined') {
+                        gsap.to(reel.symbolContainer, {
+                            y: 300,
+                            duration: spinDuration,
+                            ease: 'back.out',
+                            onComplete: resolve
+                        });
+                    } else {
+                        // Fallback without GSAP
+                        reel.symbolContainer.y = 300;
+                        resolve();
+                    }
                 }, delay * 1000);
             })
         );
@@ -231,60 +258,107 @@ function displayReels(reels) {
 
 // Update UI
 function updateUI() {
-    document.getElementById('balanceDisplay').textContent = `$${gameState.balance.toFixed(2)}`;
-    document.getElementById('betDisplay').textContent = `$${gameState.bet.toFixed(2)}`;
-    document.getElementById('winDisplay').textContent = `$${gameState.lastWin.toFixed(2)}`;
-    document.getElementById('betInput').value = gameState.bet.toFixed(2);
+    const balanceEl = document.getElementById('balanceDisplay');
+    const betEl = document.getElementById('betDisplay');
+    const winEl = document.getElementById('winDisplay');
+
+    if (balanceEl) balanceEl.textContent = `$${gameState.balance.toFixed(2)}`;
+    if (betEl) betEl.textContent = `$${gameState.bet.toFixed(2)}`;
+    if (winEl) winEl.textContent = `$${gameState.lastWin.toFixed(2)}`;
+    
+    const betInput = document.getElementById('betInput');
+    if (betInput) betInput.value = gameState.bet.toFixed(2);
 }
 
-// Bet Controls
-document.getElementById('betInput').addEventListener('change', (e) => {
-    let bet = parseFloat(e.target.value);
-    if (isNaN(bet) || bet < 0.10) bet = 0.10;
-    if (bet > 100) bet = 100;
-    gameState.bet = bet;
-    updateUI();
-});
-
-document.getElementById('betDownBtn').addEventListener('click', () => {
-    gameState.bet = Math.max(0.10, gameState.bet - 0.10);
-    updateUI();
-});
-
-document.getElementById('betUpBtn').addEventListener('click', () => {
-    gameState.bet = Math.min(100, gameState.bet + 0.10);
-    updateUI();
-});
-
-document.getElementById('spinBtn').addEventListener('click', spin);
-
-document.getElementById('resetBtn').addEventListener('click', async () => {
-    try {
-        await fetch(`${API_BASE}/api/game/reset/${sessionId}`, { method: 'POST' });
-        gameState.balance = 1000;
-        gameState.lastWin = 0;
-        gameState.bet = 1.00;
-        updateUI();
-        showSuccess('Game reset!');
-    } catch (error) {
-        showError('Reset failed: ' + error.message);
+// Setup Event Listeners
+function setupEventListeners() {
+    const betInput = document.getElementById('betInput');
+    if (betInput) {
+        betInput.addEventListener('change', (e) => {
+            let bet = parseFloat(e.target.value);
+            if (isNaN(bet) || bet < 0.10) bet = 0.10;
+            if (bet > 100) bet = 100;
+            gameState.bet = bet;
+            updateUI();
+        });
     }
-});
+
+    const betDownBtn = document.getElementById('betDownBtn');
+    if (betDownBtn) {
+        betDownBtn.addEventListener('click', () => {
+            gameState.bet = Math.max(0.10, gameState.bet - 0.10);
+            updateUI();
+        });
+    }
+
+    const betUpBtn = document.getElementById('betUpBtn');
+    if (betUpBtn) {
+        betUpBtn.addEventListener('click', () => {
+            gameState.bet = Math.min(100, gameState.bet + 0.10);
+            updateUI();
+        });
+    }
+
+    const spinBtn = document.getElementById('spinBtn');
+    if (spinBtn) {
+        spinBtn.addEventListener('click', spin);
+    }
+
+    const resetBtn = document.getElementById('resetBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch(`${API_BASE}/api/game/reset/${sessionId}`, { method: 'POST' });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    gameState.balance = 1000;
+                    gameState.lastWin = 0;
+                    gameState.bet = 1.00;
+                    updateUI();
+                    showSuccess('Game reset!');
+                }
+            } catch (error) {
+                showError('Reset failed: ' + error.message);
+            }
+        });
+    }
+}
 
 // Message Helpers
 function showError(msg) {
     const el = document.getElementById('errorMsg');
-    el.textContent = msg;
-    el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 3000);
+    if (el) {
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 3000);
+    }
 }
 
 function showSuccess(msg) {
     const el = document.getElementById('successMsg');
-    el.textContent = msg;
-    el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 3000);
+    if (el) {
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 3000);
+    }
 }
 
-// Start Game
-document.addEventListener('DOMContentLoaded', initPixi);
+// Start Game when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🎰 DOM loaded, initializing game...');
+    setupEventListeners();
+    initPixi();
+});
+
+// Also try immediate init in case DOM is already loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('🎰 DOM loaded (late), initializing game...');
+        setupEventListeners();
+        initPixi();
+    });
+} else {
+    console.log('🎰 DOM already loaded, initializing game...');
+    setupEventListeners();
+    initPixi();
+}
