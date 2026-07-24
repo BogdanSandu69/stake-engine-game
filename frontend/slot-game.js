@@ -1,5 +1,5 @@
-// Golden Dragon Deluxe - PIXI.js Frontend (FIXED v4)
-// Stake Engine Slot Game - Simple Sprite Approach
+// Golden Dragon Deluxe - Hybrid Canvas + PIXI Frontend
+// Stake Engine Slot Game - Canvas 2D Rendering
 
 const API_BASE = 'http://localhost:8000';
 let sessionId = null;
@@ -11,20 +11,21 @@ let gameState = {
     reels: [[], [], [], [], []],
 };
 
-let app = null;
-let reelSprites = [];
+let canvas = null;
+let ctx = null;
+let reelData = [];
 
 const SYMBOLS = {
-    cherry: { emoji: '🍒', color: 0xff0000 },
-    lemon: { emoji: '🍋', color: 0xffff00 },
-    orange: { emoji: '🍊', color: 0xff8800 },
-    grapes: { emoji: '🍇', color: 0x8800ff },
-    melon: { emoji: '🍈', color: 0x00ff00 },
-    bell: { emoji: '🔔', color: 0xffdd00 },
-    seven: { emoji: '7️⃣', color: 0xff00ff },
-    diamond: { emoji: '💎', color: 0x00ffff },
-    wild: { emoji: '⭐', color: 0xffd700 },
-    scatter: { emoji: '✨', color: 0xff69b4 }
+    cherry: { emoji: '🍒', color: '#ff0000' },
+    lemon: { emoji: '🍋', color: '#ffff00' },
+    orange: { emoji: '🍊', color: '#ff8800' },
+    grapes: { emoji: '🍇', color: '#8800ff' },
+    melon: { emoji: '🍈', color: '#00ff00' },
+    bell: { emoji: '🔔', color: '#ffdd00' },
+    seven: { emoji: '7️⃣', color: '#ff00ff' },
+    diamond: { emoji: '💎', color: '#00ffff' },
+    wild: { emoji: '⭐', color: '#ffd700' },
+    scatter: { emoji: '✨', color: '#ff69b4 ' }
 };
 
 // Initialize Game
@@ -38,34 +39,30 @@ async function init() {
             return;
         }
 
-        // Create canvas manually
-        const canvas = document.createElement('canvas');
+        // Create canvas
+        canvas = document.createElement('canvas');
         canvas.width = 900;
         canvas.height = 400;
         canvas.style.border = '3px solid #ffd700';
         canvas.style.borderRadius = '10px';
         canvas.style.display = 'block';
+        canvas.style.cursor = 'pointer';
         container.appendChild(canvas);
-        console.log('✅ Canvas created');
+        
+        ctx = canvas.getContext('2d');
+        console.log('✅ Canvas created with 2D context');
 
-        // Initialize PIXI with manual canvas
-        app = new PIXI.Application({
-            canvas: canvas,
-            width: 900,
-            height: 400,
-            backgroundColor: 0x0a0e27,
-            antialias: true
-        });
-
-        console.log('✅ PIXI app created');
-
-        // Create reels
-        createReels();
+        // Initialize reels
+        initializeReels();
 
         // Initialize game session
         await initGameSession();
         
         setupEventListeners();
+        
+        // Draw initial state
+        drawReels(gameState.reels);
+        
         console.log('✅ Game initialized successfully');
     } catch (error) {
         console.error('❌ Init error:', error);
@@ -73,122 +70,79 @@ async function init() {
     }
 }
 
-// Create Reel Displays
-function createReels() {
+// Initialize Reel Data Structure
+function initializeReels() {
+    reelData = [];
     const reelX = [80, 230, 380, 530, 680];
-    const reelWidth = 120;
-    const reelHeight = 320;
     
     for (let i = 0; i < 5; i++) {
-        // Reel background
-        const reelBg = new PIXI.Graphics();
-        reelBg.beginFill(0x1a1a2e);
-        reelBg.drawRect(0, 0, reelWidth, reelHeight);
-        reelBg.endFill();
-        reelBg.lineStyle(2, 0xe94560);
-        reelBg.drawRect(0, 0, reelWidth, reelHeight);
-        reelBg.x = reelX[i];
-        reelBg.y = 40;
-        app.stage.addChild(reelBg);
-
-        // Create symbol containers for this reel
-        const symbolContainers = [];
-        for (let j = 0; j < 3; j++) {
-            const symbolSprite = createSymbolSprite('cherry');
-            symbolSprite.x = reelX[i] + reelWidth / 2;
-            symbolSprite.y = 40 + j * 105 + 60;
-            app.stage.addChild(symbolSprite);
-            symbolContainers.push(symbolSprite);
-        }
-
-        reelSprites.push({
-            reelBg,
-            reelX: reelX[i],
-            reelY: 40,
-            symbolContainers: symbolContainers
+        reelData.push({
+            x: reelX[i],
+            y: 40,
+            width: 120,
+            height: 320,
+            symbols: ['cherry', 'lemon', 'orange']
         });
     }
-
-    console.log('✅ Reels created');
-    displayDefaultReels();
+    console.log('✅ Reels initialized');
 }
 
-// Create Symbol Sprite - Simple and Direct
-function createSymbolSprite(symbolName) {
-    const container = new PIXI.Container();
-    
-    const symbol = SYMBOLS[symbolName] || SYMBOLS.cherry;
-    
-    // Background circle
-    const circle = new PIXI.Graphics();
-    circle.beginFill(symbol.color);
-    circle.drawCircle(0, 0, 35);
-    circle.endFill();
-    circle.lineStyle(3, 0xffffff);
-    circle.drawCircle(0, 0, 35);
-    container.addChild(circle);
+// Draw All Reels
+function drawReels(reels) {
+    // Clear canvas
+    ctx.fillStyle = '#0a0e27';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Emoji text - using BitmapText for better rendering
-    const textStyle = new PIXI.TextStyle({
-        fontFamily: 'Arial Black',
-        fontSize: 50,
-        fill: 0xffffff,
-        fontWeight: 'bold',
-        stroke: 0x000000,
-        strokeThickness: 2
-    });
-    
-    const text = new PIXI.Text(symbol.emoji, textStyle);
-    text.anchor.set(0.5, 0.5);
-    text.x = 0;
-    text.y = -2;
-    container.addChild(text);
-
-    return container;
-}
-
-// Display Default Reels
-function displayDefaultReels() {
-    const defaultSymbols = ['cherry', 'lemon', 'orange', 'grapes', 'melon'];
-    
+    // Draw each reel
     for (let i = 0; i < 5; i++) {
-        const reel = reelSprites[i];
-        for (let j = 0; j < 3; j++) {
-            const symbolName = defaultSymbols[i];
-            
-            // Clear old symbol
-            reel.symbolContainers[j].removeChildren();
-            
-            // Create new symbol
-            const newSymbol = SYMBOLS[symbolName] || SYMBOLS.cherry;
-            
-            // Background circle
-            const circle = new PIXI.Graphics();
-            circle.beginFill(newSymbol.color);
-            circle.drawCircle(0, 0, 35);
-            circle.endFill();
-            circle.lineStyle(3, 0xffffff);
-            circle.drawCircle(0, 0, 35);
-            reel.symbolContainers[j].addChild(circle);
+        const reel = reelData[i];
+        
+        // Reel background
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(reel.x, reel.y, reel.width, reel.height);
+        
+        // Reel border
+        ctx.strokeStyle = '#e94560';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(reel.x, reel.y, reel.width, reel.height);
 
-            // Emoji text
-            const textStyle = new PIXI.TextStyle({
-                fontFamily: 'Arial Black',
-                fontSize: 50,
-                fill: 0xffffff,
-                fontWeight: 'bold',
-                stroke: 0x000000,
-                strokeThickness: 2
-            });
-            
-            const text = new PIXI.Text(newSymbol.emoji, textStyle);
-            text.anchor.set(0.5, 0.5);
-            text.x = 0;
-            text.y = -2;
-            reel.symbolContainers[j].addChild(text);
+        // Draw symbols
+        if (reels && reels[i]) {
+            for (let j = 0; j < 3; j++) {
+                const symbolName = reels[i][j] || 'cherry';
+                drawSymbol(
+                    reel.x + reel.width / 2,
+                    reel.y + 60 + j * 105,
+                    symbolName
+                );
+            }
         }
     }
-    console.log('✅ Default reels displayed');
+}
+
+// Draw Single Symbol
+function drawSymbol(x, y, symbolName) {
+    const symbol = SYMBOLS[symbolName] || SYMBOLS.cherry;
+    
+    // Circle background
+    ctx.fillStyle = symbol.color;
+    ctx.beginPath();
+    ctx.arc(x, y, 35, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Circle border
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Emoji text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(symbol.emoji, x, y);
+    
+    console.log(`🎯 Drew symbol ${symbolName} at (${x}, ${y})`);
 }
 
 // Initialize Game Session
@@ -218,7 +172,7 @@ async function spin() {
     document.getElementById('spinBtn').disabled = true;
 
     try {
-        // Animate reels spinning
+        // Animate spinning
         await animateSpin();
 
         // Call backend API
@@ -237,7 +191,7 @@ async function spin() {
             gameState.reels = result.reels;
 
             // Display result
-            displayResultReels(result.reels);
+            drawReels(result.reels);
 
             if (result.total_win > 0) {
                 showSuccess(`🎉 WIN! +$${result.total_win.toFixed(2)}`);
@@ -261,45 +215,38 @@ async function spin() {
 async function animateSpin() {
     return new Promise(resolve => {
         let frame = 0;
-        const totalFrames = 30;
+        const totalFrames = 40;
         
         const animate = () => {
             frame++;
             
-            // Random symbols while spinning
+            // Clear canvas
+            ctx.fillStyle = '#0a0e27';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw spinning reels with random symbols
             for (let i = 0; i < 5; i++) {
-                const reel = reelSprites[i];
+                const reel = reelData[i];
+                
+                // Reel background
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(reel.x, reel.y, reel.width, reel.height);
+                
+                // Reel border
+                ctx.strokeStyle = '#e94560';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(reel.x, reel.y, reel.width, reel.height);
+
+                // Random symbols
                 for (let j = 0; j < 3; j++) {
                     const symbolNames = Object.keys(SYMBOLS);
                     const randomSymbol = symbolNames[Math.floor(Math.random() * symbolNames.length)];
                     
-                    const newSymbol = SYMBOLS[randomSymbol];
-                    
-                    // Clear and redraw
-                    reel.symbolContainers[j].removeChildren();
-                    
-                    const circle = new PIXI.Graphics();
-                    circle.beginFill(newSymbol.color);
-                    circle.drawCircle(0, 0, 35);
-                    circle.endFill();
-                    circle.lineStyle(3, 0xffffff);
-                    circle.drawCircle(0, 0, 35);
-                    reel.symbolContainers[j].addChild(circle);
-
-                    const textStyle = new PIXI.TextStyle({
-                        fontFamily: 'Arial Black',
-                        fontSize: 50,
-                        fill: 0xffffff,
-                        fontWeight: 'bold',
-                        stroke: 0x000000,
-                        strokeThickness: 2
-                    });
-                    
-                    const text = new PIXI.Text(newSymbol.emoji, textStyle);
-                    text.anchor.set(0.5, 0.5);
-                    text.x = 0;
-                    text.y = -2;
-                    reel.symbolContainers[j].addChild(text);
+                    drawSymbol(
+                        reel.x + reel.width / 2,
+                        reel.y + 60 + j * 105,
+                        randomSymbol
+                    );
                 }
             }
 
@@ -312,47 +259,6 @@ async function animateSpin() {
 
         animate();
     });
-}
-
-// Display Result Reels
-function displayResultReels(reels) {
-    console.log('🎯 Displaying result reels:', reels);
-    
-    for (let i = 0; i < 5 && i < reels.length; i++) {
-        const reel = reelSprites[i];
-        const reelSymbols = reels[i];
-
-        for (let j = 0; j < 3 && j < reelSymbols.length; j++) {
-            const symbolName = reelSymbols[j];
-            const newSymbol = SYMBOLS[symbolName] || SYMBOLS.cherry;
-            
-            // Clear and redraw
-            reel.symbolContainers[j].removeChildren();
-            
-            const circle = new PIXI.Graphics();
-            circle.beginFill(newSymbol.color);
-            circle.drawCircle(0, 0, 35);
-            circle.endFill();
-            circle.lineStyle(3, 0xffffff);
-            circle.drawCircle(0, 0, 35);
-            reel.symbolContainers[j].addChild(circle);
-
-            const textStyle = new PIXI.TextStyle({
-                fontFamily: 'Arial Black',
-                fontSize: 50,
-                fill: 0xffffff,
-                fontWeight: 'bold',
-                stroke: 0x000000,
-                strokeThickness: 2
-            });
-            
-            const text = new PIXI.Text(newSymbol.emoji, textStyle);
-            text.anchor.set(0.5, 0.5);
-            text.x = 0;
-            text.y = -2;
-            reel.symbolContainers[j].addChild(text);
-        }
-    }
 }
 
 // Update UI
@@ -393,8 +299,9 @@ function setupEventListeners() {
                 gameState.balance = 1000;
                 gameState.lastWin = 0;
                 gameState.bet = 1.00;
+                gameState.reels = [[], [], [], [], []];
                 updateUI();
-                displayDefaultReels();
+                drawReels([['cherry', 'lemon', 'orange'], ['grapes', 'melon', 'bell'], ['seven', 'diamond', 'wild'], ['scatter', 'cherry', 'lemon'], ['orange', 'grapes', 'melon']]);
                 showSuccess('Game reset!');
             }
         } catch (error) {
