@@ -1,4 +1,4 @@
-// Golden Dragon Deluxe - PIXI.js Frontend
+// Golden Dragon Deluxe - PIXI.js Frontend (FIXED)
 // Stake Engine Slot Game
 
 const API_BASE = 'http://localhost:8000';
@@ -11,200 +11,164 @@ let gameState = {
     reels: [[], [], [], [], []],
 };
 
-// PIXI Setup
-let app;
-let reelContainers = [];
-const SYMBOL_NAMES = ['cherry', 'lemon', 'orange', 'grapes', 'melon', 'bell', 'seven', 'diamond', 'wild', 'scatter'];
-const SYMBOL_COLORS = {
-    cherry: 0xff0000,
-    lemon: 0xffff00,
-    orange: 0xff8800,
-    grapes: 0x8800ff,
-    melon: 0x00ff00,
-    bell: 0xffdd00,
-    seven: 0xff00ff,
-    diamond: 0x00ffff,
-    wild: 0xffd700,
-    scatter: 0xff69b4
+let app = null;
+let reelSprites = [];
+
+const SYMBOLS = {
+    cherry: { emoji: '🍒', color: 0xff0000 },
+    lemon: { emoji: '🍋', color: 0xffff00 },
+    orange: { emoji: '🍊', color: 0xff8800 },
+    grapes: { emoji: '🍇', color: 0x8800ff },
+    melon: { emoji: '🍈', color: 0x00ff00 },
+    bell: { emoji: '🔔', color: 0xffdd00 },
+    seven: { emoji: '7️⃣', color: 0xff00ff },
+    diamond: { emoji: '💎', color: 0x00ffff },
+    wild: { emoji: '⭐', color: 0xffd700 },
+    scatter: { emoji: '✨', color: 0xff69b4 }
 };
 
-const SYMBOL_EMOJIS = {
-    cherry: '🍒',
-    lemon: '🍋',
-    orange: '🍊',
-    grapes: '🍇',
-    melon: '🍈',
-    bell: '🔔',
-    seven: '7️⃣',
-    diamond: '💎',
-    wild: '⭐',
-    scatter: '✨'
-};
-
-// Initialize PIXI App
-async function initPixi() {
+// Initialize Game
+async function init() {
     try {
-        // Create canvas element
-        const canvas = document.createElement('canvas');
-        canvas.id = 'pixi-canvas';
-        canvas.width = 900;
-        canvas.height = 400;
-        canvas.style.border = '3px solid #ffd700';
-        canvas.style.borderRadius = '10px';
-
-        const gameContainer = document.getElementById('gameContainer');
-        if (!gameContainer) {
+        console.log('🎰 Initializing game...');
+        
+        // Create PIXI app
+        const container = document.getElementById('gameContainer');
+        if (!container) {
             console.error('❌ gameContainer not found');
             return;
         }
-        gameContainer.innerHTML = '';
-        gameContainer.appendChild(canvas);
 
-        // Initialize PIXI app with canvas
         app = new PIXI.Application({
-            view: canvas,
             width: 900,
             height: 400,
             backgroundColor: 0x0a0e27,
             antialias: true,
-            resolution: 1
+            resolution: window.devicePixelRatio || 1
         });
 
-        console.log('✅ PIXI app initialized');
+        container.appendChild(app.view);
+        console.log('✅ PIXI app created');
+
+        // Create reels
         createReels();
-        await initGame();
+
+        // Initialize game session
+        await initGameSession();
+        
+        setupEventListeners();
+        console.log('✅ Game initialized');
     } catch (error) {
-        console.error('❌ PIXI initialization error:', error);
-        showError('Failed to initialize game: ' + error.message);
+        console.error('❌ Init error:', error);
+        showError('Failed to initialize: ' + error.message);
     }
 }
 
-// Create Reel Containers
+// Create Reel Displays
 function createReels() {
-    const reelWidth = 120;
-    const reelHeight = 300;
-    const startX = 40;
-    const startY = 50;
-    const spacing = 150;
-
+    const reelX = [80, 230, 380, 530, 680];
+    
     for (let i = 0; i < 5; i++) {
-        const container = new PIXI.Container();
-        container.x = startX + i * spacing;
-        container.y = startY;
-
         // Reel background
-        const bg = new PIXI.Graphics();
-        bg.beginFill(0x1a1a2e);
-        bg.drawRect(0, 0, reelWidth, reelHeight);
-        bg.endFill();
-        bg.lineStyle(2, 0xe94560);
-        bg.drawRect(0, 0, reelWidth, reelHeight);
-        container.addChild(bg);
+        const reelBg = new PIXI.Graphics();
+        reelBg.beginFill(0x1a1a2e);
+        reelBg.drawRect(0, 0, 120, 320);
+        reelBg.endFill();
+        reelBg.lineStyle(2, 0xe94560);
+        reelBg.drawRect(0, 0, 120, 320);
+        reelBg.x = reelX[i];
+        reelBg.y = 40;
+        app.stage.addChild(reelBg);
 
-        // Symbols container with mask
-        const symbolContainer = new PIXI.Container();
-        symbolContainer.x = 0;
-        symbolContainer.y = 0;
+        // Create container for symbols in this reel
+        const reelContainer = new PIXI.Container();
+        reelContainer.x = reelX[i] + 60; // Center of reel
+        reelContainer.y = 40;
+        app.stage.addChild(reelContainer);
 
-        // Add 3 initial symbols
+        // Add 3 symbol positions
+        const symbolGroup = [];
         for (let j = 0; j < 3; j++) {
-            const symbol = createSymbol('cherry', j);
-            symbol.x = reelWidth / 2;
-            symbol.y = j * 100 + 50;
-            symbolContainer.addChild(symbol);
+            const symbolContainer = new PIXI.Container();
+            symbolContainer.x = 0;
+            symbolContainer.y = j * 100 + 60;
+            reelContainer.addChild(symbolContainer);
+            symbolGroup.push(symbolContainer);
         }
 
-        container.addChild(symbolContainer);
-
-        // Add mask
-        const mask = new PIXI.Graphics();
-        mask.beginFill(0xffffff);
-        mask.drawRect(0, 0, reelWidth, reelHeight);
-        mask.endFill();
-        symbolContainer.mask = mask;
-
-        app.stage.addChild(container);
-        reelContainers.push({
-            container,
-            symbolContainer,
-            bg,
-            reelWidth,
-            reelHeight,
-            symbols: []
+        reelSprites.push({
+            reelBg,
+            reelContainer,
+            symbolContainers: symbolGroup,
+            reelX: reelX[i]
         });
     }
 
-    console.log('✅ Reels created:', reelContainers.length);
+    console.log('✅ Reels created');
+    displayDefaultReels();
 }
 
-// Create Symbol with PIXI Text
-function createSymbol(symbolName, index = 0) {
-    const container = new PIXI.Container();
-    const size = 80;
+// Display Default Reels
+function displayDefaultReels() {
+    const defaultSymbols = ['cherry', 'lemon', 'orange', 'grapes', 'melon'];
+    
+    for (let i = 0; i < 5; i++) {
+        const reel = reelSprites[i];
+        for (let j = 0; j < 3; j++) {
+            const symbolName = defaultSymbols[i];
+            reel.symbolContainers[j].removeChildren();
+            const symbol = createSymbolGraphic(symbolName);
+            reel.symbolContainers[j].addChild(symbol);
+        }
+    }
+    console.log('✅ Default reels displayed');
+}
 
+// Create Symbol Graphic
+function createSymbolGraphic(symbolName) {
+    const group = new PIXI.Container();
+    
+    const symbol = SYMBOLS[symbolName] || SYMBOLS.cherry;
+    
     // Background circle
-    const bg = new PIXI.Graphics();
-    bg.beginFill(SYMBOL_COLORS[symbolName]);
-    bg.drawCircle(0, 0, 35);
-    bg.endFill();
-    bg.lineStyle(2, 0xffffff);
-    bg.drawCircle(0, 0, 35);
-    container.addChild(bg);
+    const circle = new PIXI.Graphics();
+    circle.beginFill(symbol.color);
+    circle.drawCircle(0, 0, 35);
+    circle.endFill();
+    circle.lineStyle(3, 0xffffff);
+    circle.drawCircle(0, 0, 35);
+    group.addChild(circle);
 
-    // Symbol text/emoji
-    const text = new PIXI.Text(SYMBOL_EMOJIS[symbolName] || symbolName.charAt(0).toUpperCase(), {
+    // Emoji text
+    const textStyle = new PIXI.TextStyle({
         fontFamily: 'Arial',
-        fontSize: 40,
+        fontSize: 48,
         fill: 0xffffff,
-        fontWeight: 'bold',
-        align: 'center'
+        fontWeight: 'bold'
     });
+    
+    const text = new PIXI.Text(symbol.emoji, textStyle);
     text.anchor.set(0.5, 0.5);
     text.x = 0;
     text.y = 0;
-    container.addChild(text);
+    group.addChild(text);
 
-    container.width = size;
-    container.height = size;
-
-    return container;
+    return group;
 }
 
 // Initialize Game Session
-async function initGame() {
+async function initGameSession() {
     try {
         const response = await fetch(`${API_BASE}/api/wallet/init`, { method: 'POST' });
         const data = await response.json();
         sessionId = data.session_id;
         gameState.balance = data.balance;
         updateUI();
-        console.log('✅ Game initialized:', sessionId);
-        
-        // Display initial reels
-        displayInitialReels();
+        console.log('✅ Session initialized:', sessionId);
     } catch (error) {
-        console.error('❌ Game init error:', error);
-        showError('Failed to initialize game: ' + error.message);
+        console.error('❌ Session init error:', error);
+        showError('Failed to connect to backend: ' + error.message);
     }
-}
-
-// Display Initial Reels
-function displayInitialReels() {
-    const initialSymbols = ['cherry', 'lemon', 'orange', 'grapes', 'melon'];
-    
-    for (let i = 0; i < 5; i++) {
-        const reel = reelContainers[i];
-        reel.symbolContainer.removeChildren();
-
-        for (let j = 0; j < 3; j++) {
-            const symbol = createSymbol(initialSymbols[i], j);
-            symbol.x = reel.reelWidth / 2;
-            symbol.y = j * 100 + 50;
-            reel.symbolContainer.addChild(symbol);
-        }
-    }
-    
-    console.log('✅ Initial reels displayed');
 }
 
 // Spin Function
@@ -219,10 +183,10 @@ async function spin() {
     document.getElementById('spinBtn').disabled = true;
 
     try {
-        // Animate spinning reels
-        await animateReels();
+        // Animate reels spinning
+        await animateSpin();
 
-        // Call API
+        // Call backend API
         const response = await fetch(`${API_BASE}/api/game/spin/${sessionId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -237,8 +201,8 @@ async function spin() {
             gameState.lastWin = result.total_win;
             gameState.reels = result.reels;
 
-            // Display result reels
-            displayReels(result.reels);
+            // Display result
+            displayResultReels(result.reels);
 
             if (result.total_win > 0) {
                 showSuccess(`🎉 WIN! +$${result.total_win.toFixed(2)}`);
@@ -258,161 +222,118 @@ async function spin() {
     document.getElementById('spinBtn').disabled = false;
 }
 
-// Animate Reels
-async function animateReels() {
-    const spinDuration = 0.6;
-    const promises = [];
+// Animate Spin
+async function animateSpin() {
+    return new Promise(resolve => {
+        let frame = 0;
+        const totalFrames = 30;
+        
+        const animate = () => {
+            frame++;
+            
+            // Random symbols while spinning
+            for (let i = 0; i < 5; i++) {
+                const reel = reelSprites[i];
+                for (let j = 0; j < 3; j++) {
+                    const symbolNames = Object.keys(SYMBOLS);
+                    const randomSymbol = symbolNames[Math.floor(Math.random() * symbolNames.length)];
+                    
+                    reel.symbolContainers[j].removeChildren();
+                    const symbol = createSymbolGraphic(randomSymbol);
+                    reel.symbolContainers[j].addChild(symbol);
+                }
+            }
 
-    for (let i = 0; i < reelContainers.length; i++) {
-        const reel = reelContainers[i];
-        const delay = i * 0.15;
+            if (frame < totalFrames) {
+                requestAnimationFrame(animate);
+            } else {
+                resolve();
+            }
+        };
 
-        promises.push(
-            new Promise(resolve => {
-                setTimeout(() => {
-                    if (typeof gsap !== 'undefined') {
-                        gsap.to(reel.symbolContainer, {
-                            y: -300,
-                            duration: spinDuration,
-                            ease: 'back.out',
-                            onComplete: () => {
-                                reel.symbolContainer.y = 0;
-                                resolve();
-                            }
-                        });
-                    } else {
-                        resolve();
-                    }
-                }, delay * 1000);
-            })
-        );
-    }
-
-    return Promise.all(promises);
+        animate();
+    });
 }
 
-// Display Reels Result
-function displayReels(reels) {
-    console.log('🎰 Displaying reels:', reels);
+// Display Result Reels
+function displayResultReels(reels) {
+    console.log('🎯 Displaying result reels:', reels);
     
     for (let i = 0; i < 5 && i < reels.length; i++) {
-        const reel = reelContainers[i];
+        const reel = reelSprites[i];
         const reelSymbols = reels[i];
 
-        // Clear old symbols
-        reel.symbolContainer.removeChildren();
-
-        // Add new symbols
         for (let j = 0; j < 3 && j < reelSymbols.length; j++) {
             const symbolName = reelSymbols[j];
-            const symbol = createSymbol(symbolName, j);
-            symbol.x = reel.reelWidth / 2;
-            symbol.y = j * 100 + 50;
-            reel.symbolContainer.addChild(symbol);
-            console.log(`  Reel ${i}, Position ${j}: ${symbolName}`);
+            reel.symbolContainers[j].removeChildren();
+            const symbol = createSymbolGraphic(symbolName);
+            reel.symbolContainers[j].addChild(symbol);
         }
     }
 }
 
 // Update UI
 function updateUI() {
-    const balanceEl = document.getElementById('balanceDisplay');
-    const betEl = document.getElementById('betDisplay');
-    const winEl = document.getElementById('winDisplay');
-
-    if (balanceEl) balanceEl.textContent = `$${gameState.balance.toFixed(2)}`;
-    if (betEl) betEl.textContent = `$${gameState.bet.toFixed(2)}`;
-    if (winEl) winEl.textContent = `$${gameState.lastWin.toFixed(2)}`;
-    
-    const betInput = document.getElementById('betInput');
-    if (betInput) betInput.value = gameState.bet.toFixed(2);
+    document.getElementById('balanceDisplay').textContent = `$${gameState.balance.toFixed(2)}`;
+    document.getElementById('betDisplay').textContent = `$${gameState.bet.toFixed(2)}`;
+    document.getElementById('winDisplay').textContent = `$${gameState.lastWin.toFixed(2)}`;
+    document.getElementById('betInput').value = gameState.bet.toFixed(2);
 }
 
 // Setup Event Listeners
 function setupEventListeners() {
-    const betInput = document.getElementById('betInput');
-    if (betInput) {
-        betInput.addEventListener('change', (e) => {
-            let bet = parseFloat(e.target.value);
-            if (isNaN(bet) || bet < 0.10) bet = 0.10;
-            if (bet > 100) bet = 100;
-            gameState.bet = bet;
-            updateUI();
-        });
-    }
+    document.getElementById('betInput').addEventListener('change', (e) => {
+        let bet = parseFloat(e.target.value);
+        if (isNaN(bet) || bet < 0.10) bet = 0.10;
+        if (bet > 100) bet = 100;
+        gameState.bet = bet;
+        updateUI();
+    });
 
-    const betDownBtn = document.getElementById('betDownBtn');
-    if (betDownBtn) {
-        betDownBtn.addEventListener('click', () => {
-            gameState.bet = Math.max(0.10, gameState.bet - 0.10);
-            updateUI();
-        });
-    }
+    document.getElementById('betDownBtn').addEventListener('click', () => {
+        gameState.bet = Math.max(0.10, gameState.bet - 0.10);
+        updateUI();
+    });
 
-    const betUpBtn = document.getElementById('betUpBtn');
-    if (betUpBtn) {
-        betUpBtn.addEventListener('click', () => {
-            gameState.bet = Math.min(100, gameState.bet + 0.10);
-            updateUI();
-        });
-    }
+    document.getElementById('betUpBtn').addEventListener('click', () => {
+        gameState.bet = Math.min(100, gameState.bet + 0.10);
+        updateUI();
+    });
 
-    const spinBtn = document.getElementById('spinBtn');
-    if (spinBtn) {
-        spinBtn.addEventListener('click', spin);
-    }
+    document.getElementById('spinBtn').addEventListener('click', spin);
 
-    const resetBtn = document.getElementById('resetBtn');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', async () => {
-            try {
-                const response = await fetch(`${API_BASE}/api/game/reset/${sessionId}`, { method: 'POST' });
-                const data = await response.json();
-                if (data.status === 'success') {
-                    gameState.balance = 1000;
-                    gameState.lastWin = 0;
-                    gameState.bet = 1.00;
-                    updateUI();
-                    displayInitialReels();
-                    showSuccess('Game reset!');
-                }
-            } catch (error) {
-                showError('Reset failed: ' + error.message);
+    document.getElementById('resetBtn').addEventListener('click', async () => {
+        try {
+            const response = await fetch(`${API_BASE}/api/game/reset/${sessionId}`, { method: 'POST' });
+            const data = await response.json();
+            if (data.status === 'success') {
+                gameState.balance = 1000;
+                gameState.lastWin = 0;
+                gameState.bet = 1.00;
+                updateUI();
+                displayDefaultReels();
+                showSuccess('Game reset!');
             }
-        });
-    }
+        } catch (error) {
+            showError('Reset failed: ' + error.message);
+        }
+    });
 }
 
 // Message Helpers
 function showError(msg) {
     const el = document.getElementById('errorMsg');
-    if (el) {
-        el.textContent = msg;
-        el.style.display = 'block';
-        setTimeout(() => el.style.display = 'none', 3000);
-    }
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3000);
 }
 
 function showSuccess(msg) {
     const el = document.getElementById('successMsg');
-    if (el) {
-        el.textContent = msg;
-        el.style.display = 'block';
-        setTimeout(() => el.style.display = 'none', 3000);
-    }
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3000);
 }
 
-// Start Game when DOM is ready
-console.log('🎰 Script loaded, waiting for DOM...');
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log('🎰 DOM loaded, initializing game...');
-        setupEventListeners();
-        initPixi();
-    });
-} else {
-    console.log('🎰 DOM already loaded, initializing game...');
-    setupEventListeners();
-    initPixi();
-}
+// Start when ready
+document.addEventListener('DOMContentLoaded', init);
