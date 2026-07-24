@@ -28,6 +28,19 @@ const SYMBOL_COLORS = {
     scatter: 0xff69b4
 };
 
+const SYMBOL_EMOJIS = {
+    cherry: '🍒',
+    lemon: '🍋',
+    orange: '🍊',
+    grapes: '🍇',
+    melon: '🍈',
+    bell: '🔔',
+    seven: '7️⃣',
+    diamond: '💎',
+    wild: '⭐',
+    scatter: '✨'
+};
+
 // Initialize PIXI App
 async function initPixi() {
     try {
@@ -36,12 +49,15 @@ async function initPixi() {
         canvas.id = 'pixi-canvas';
         canvas.width = 900;
         canvas.height = 400;
+        canvas.style.border = '3px solid #ffd700';
+        canvas.style.borderRadius = '10px';
 
         const gameContainer = document.getElementById('gameContainer');
         if (!gameContainer) {
-            console.error('gameContainer not found');
+            console.error('❌ gameContainer not found');
             return;
         }
+        gameContainer.innerHTML = '';
         gameContainer.appendChild(canvas);
 
         // Initialize PIXI app with canvas
@@ -50,25 +66,26 @@ async function initPixi() {
             width: 900,
             height: 400,
             backgroundColor: 0x0a0e27,
-            antialias: true
+            antialias: true,
+            resolution: 1
         });
 
         console.log('✅ PIXI app initialized');
         createReels();
         await initGame();
     } catch (error) {
-        console.error('PIXI initialization error:', error);
+        console.error('❌ PIXI initialization error:', error);
         showError('Failed to initialize game: ' + error.message);
     }
 }
 
 // Create Reel Containers
 function createReels() {
-    const reelWidth = 140;
+    const reelWidth = 120;
     const reelHeight = 300;
-    const startX = 50;
+    const startX = 40;
     const startY = 50;
-    const spacing = 160;
+    const spacing = 150;
 
     for (let i = 0; i < 5; i++) {
         const container = new PIXI.Container();
@@ -84,58 +101,73 @@ function createReels() {
         bg.drawRect(0, 0, reelWidth, reelHeight);
         container.addChild(bg);
 
-        // Symbols in reel
+        // Symbols container with mask
         const symbolContainer = new PIXI.Container();
         symbolContainer.x = 0;
         symbolContainer.y = 0;
-        symbolContainer.mask = bg;
 
+        // Add 3 initial symbols
         for (let j = 0; j < 3; j++) {
-            const symbol = createSymbol('cherry');
-            symbol.y = j * 100;
+            const symbol = createSymbol('cherry', j);
+            symbol.x = reelWidth / 2;
+            symbol.y = j * 100 + 50;
             symbolContainer.addChild(symbol);
         }
 
         container.addChild(symbolContainer);
+
+        // Add mask
+        const mask = new PIXI.Graphics();
+        mask.beginFill(0xffffff);
+        mask.drawRect(0, 0, reelWidth, reelHeight);
+        mask.endFill();
+        symbolContainer.mask = mask;
+
         app.stage.addChild(container);
         reelContainers.push({
             container,
             symbolContainer,
+            bg,
+            reelWidth,
+            reelHeight,
             symbols: []
         });
     }
 
-    console.log('✅ Reels created');
+    console.log('✅ Reels created:', reelContainers.length);
 }
 
-// Create Symbol Sprite
-function createSymbol(symbolName) {
-    const graphics = new PIXI.Graphics();
-    const color = SYMBOL_COLORS[symbolName] || 0xffd700;
+// Create Symbol with PIXI Text
+function createSymbol(symbolName, index = 0) {
+    const container = new PIXI.Container();
+    const size = 80;
 
-    // Draw circle
-    graphics.beginFill(color);
-    graphics.drawCircle(0, 0, 45);
-    graphics.endFill();
+    // Background circle
+    const bg = new PIXI.Graphics();
+    bg.beginFill(SYMBOL_COLORS[symbolName]);
+    bg.drawCircle(0, 0, 35);
+    bg.endFill();
+    bg.lineStyle(2, 0xffffff);
+    bg.drawCircle(0, 0, 35);
+    container.addChild(bg);
 
-    // Add border
-    graphics.lineStyle(3, 0xffffff);
-    graphics.drawCircle(0, 0, 45);
-
-    // Add text
-    const text = new PIXI.Text(symbolName.charAt(0).toUpperCase(), {
+    // Symbol text/emoji
+    const text = new PIXI.Text(SYMBOL_EMOJIS[symbolName] || symbolName.charAt(0).toUpperCase(), {
         fontFamily: 'Arial',
-        fontSize: 32,
+        fontSize: 40,
         fill: 0xffffff,
-        fontWeight: 'bold'
+        fontWeight: 'bold',
+        align: 'center'
     });
-    text.anchor.set(0.5);
-    graphics.addChild(text);
+    text.anchor.set(0.5, 0.5);
+    text.x = 0;
+    text.y = 0;
+    container.addChild(text);
 
-    graphics.width = 90;
-    graphics.height = 90;
+    container.width = size;
+    container.height = size;
 
-    return graphics;
+    return container;
 }
 
 // Initialize Game Session
@@ -147,10 +179,32 @@ async function initGame() {
         gameState.balance = data.balance;
         updateUI();
         console.log('✅ Game initialized:', sessionId);
+        
+        // Display initial reels
+        displayInitialReels();
     } catch (error) {
-        console.error('Game init error:', error);
+        console.error('❌ Game init error:', error);
         showError('Failed to initialize game: ' + error.message);
     }
+}
+
+// Display Initial Reels
+function displayInitialReels() {
+    const initialSymbols = ['cherry', 'lemon', 'orange', 'grapes', 'melon'];
+    
+    for (let i = 0; i < 5; i++) {
+        const reel = reelContainers[i];
+        reel.symbolContainer.removeChildren();
+
+        for (let j = 0; j < 3; j++) {
+            const symbol = createSymbol(initialSymbols[i], j);
+            symbol.x = reel.reelWidth / 2;
+            symbol.y = j * 100 + 50;
+            reel.symbolContainer.addChild(symbol);
+        }
+    }
+    
+    console.log('✅ Initial reels displayed');
 }
 
 // Spin Function
@@ -176,13 +230,14 @@ async function spin() {
         });
 
         const result = await response.json();
+        console.log('📊 Spin result:', result);
 
         if (result.status === 'success') {
             gameState.balance = result.new_balance;
             gameState.lastWin = result.total_win;
             gameState.reels = result.reels;
 
-            // Display result
+            // Display result reels
             displayReels(result.reels);
 
             if (result.total_win > 0) {
@@ -194,7 +249,7 @@ async function spin() {
             showError(result.error || 'Spin failed');
         }
     } catch (error) {
-        console.error('Spin error:', error);
+        console.error('❌ Spin error:', error);
         showError('Spin error: ' + error.message);
     }
 
@@ -205,26 +260,27 @@ async function spin() {
 
 // Animate Reels
 async function animateReels() {
-    const spinDuration = 0.5; // seconds
+    const spinDuration = 0.6;
     const promises = [];
 
     for (let i = 0; i < reelContainers.length; i++) {
         const reel = reelContainers[i];
-        const delay = i * 0.1; // Stagger reels
+        const delay = i * 0.15;
 
         promises.push(
             new Promise(resolve => {
                 setTimeout(() => {
                     if (typeof gsap !== 'undefined') {
                         gsap.to(reel.symbolContainer, {
-                            y: 300,
+                            y: -300,
                             duration: spinDuration,
                             ease: 'back.out',
-                            onComplete: resolve
+                            onComplete: () => {
+                                reel.symbolContainer.y = 0;
+                                resolve();
+                            }
                         });
                     } else {
-                        // Fallback without GSAP
-                        reel.symbolContainer.y = 300;
                         resolve();
                     }
                 }, delay * 1000);
@@ -237,7 +293,9 @@ async function animateReels() {
 
 // Display Reels Result
 function displayReels(reels) {
-    for (let i = 0; i < 5; i++) {
+    console.log('🎰 Displaying reels:', reels);
+    
+    for (let i = 0; i < 5 && i < reels.length; i++) {
         const reel = reelContainers[i];
         const reelSymbols = reels[i];
 
@@ -245,14 +303,14 @@ function displayReels(reels) {
         reel.symbolContainer.removeChildren();
 
         // Add new symbols
-        for (let j = 0; j < 3; j++) {
-            const symbol = createSymbol(reelSymbols[j]);
-            symbol.y = j * 100;
+        for (let j = 0; j < 3 && j < reelSymbols.length; j++) {
+            const symbolName = reelSymbols[j];
+            const symbol = createSymbol(symbolName, j);
+            symbol.x = reel.reelWidth / 2;
+            symbol.y = j * 100 + 50;
             reel.symbolContainer.addChild(symbol);
+            console.log(`  Reel ${i}, Position ${j}: ${symbolName}`);
         }
-
-        // Reset position
-        reel.symbolContainer.y = 0;
     }
 }
 
@@ -315,6 +373,7 @@ function setupEventListeners() {
                     gameState.lastWin = 0;
                     gameState.bet = 1.00;
                     updateUI();
+                    displayInitialReels();
                     showSuccess('Game reset!');
                 }
             } catch (error) {
@@ -344,16 +403,11 @@ function showSuccess(msg) {
 }
 
 // Start Game when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('🎰 DOM loaded, initializing game...');
-    setupEventListeners();
-    initPixi();
-});
+console.log('🎰 Script loaded, waiting for DOM...');
 
-// Also try immediate init in case DOM is already loaded
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('🎰 DOM loaded (late), initializing game...');
+        console.log('🎰 DOM loaded, initializing game...');
         setupEventListeners();
         initPixi();
     });
