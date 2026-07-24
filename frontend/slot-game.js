@@ -1,4 +1,4 @@
-// Golden Dragon Deluxe - PIXI.js Frontend (FIXED)
+// Golden Dragon Deluxe - PIXI.js Frontend (FIXED v2)
 // Stake Engine Slot Game
 
 const API_BASE = 'http://localhost:8000';
@@ -47,7 +47,13 @@ async function init() {
             resolution: window.devicePixelRatio || 1
         });
 
-        container.appendChild(app.view);
+        // Get canvas from app
+        const canvas = app.canvas;
+        if (canvas) {
+            container.appendChild(canvas);
+            console.log('✅ Canvas appended');
+        }
+
         console.log('✅ PIXI app created');
 
         // Create reels
